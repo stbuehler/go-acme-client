@@ -33,12 +33,36 @@ The password is used for local encryption of your private key (which is used to 
 
 It will show various challenges and combinations. You need to satisfy at least on combination (i.e. all challenges part of it).
 
-Select the challenge you want to respond to (`simpleHttp` involves serving a static file, `dvsni` setting up a "fake" vhost with a SSL certificate), and follow the instructions.
+Select the challenge you want to respond to (`simpleHttp`/`http-01` involves serving a static file, `dvsni`/`tls-sni-01` setting up a "fake" vhost with a SSL certificate), and follow the instructions.
+
+### Batch-clam domain names:
+
+`http-01` has a very nice batchable interface; you need to setup your web server to serve requests of the form `http://domain/.well-known/acme-challenge/<token>` and return a `text/plain` document with the text `<token>.<pubkeyhash>`.
+
+The `<pubkeyhash>` is the SHA256 Thumbprint of your JWS public web key; run
+
+	$GOPATH/bin/acme-client authorize-batch
+
+to see it.
+
+lighttpd2 for example can do this in the config like this:
+
+	if req.path =~ "/.well-known/acme-challenge/([-a-zA-Z0-9_]+)$" {
+		respond '%1.url-base64-encoding-of-sha256-thumbprint';
+	}
+
+No simply run:
+
+	$GOPATH/bin/acme-client authorize-batch example.com sub.example.com more.example.com
+
+with all the domain names you want to authorize.
 
 ### Create a certificate
 
-	$GOPATH/bin/acme-client certificate
+	$GOPATH/bin/acme-client certificate [domains...]
 
-It takes an optional private key, otherwise it will generate one (by default a 2048-bit RSA key).
+You can give it a private key to use (by default it wil generate a 2048-bit RSA key).
 
-It will ask interactively for the domain names you want the certificate to be valid for (the first one will also be used in the Common Name).
+If you don't give any domain names it will ask interactively and show available ones. The first domain name will also be used in the Common Name
+
+In the output will also be a link where you can pull the certificate any time you want; it should automatically provide a refreshed certificate if the old one is getting near the expiry date.

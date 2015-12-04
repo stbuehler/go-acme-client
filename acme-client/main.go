@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/stbuehler/go-acme-client/command_authorize"
+	"github.com/stbuehler/go-acme-client/command_authorize_batch"
 	"github.com/stbuehler/go-acme-client/command_authorize_import"
 	"github.com/stbuehler/go-acme-client/command_certificate"
 	"github.com/stbuehler/go-acme-client/command_certificate_show"
@@ -27,6 +28,8 @@ func main() {
 			command_register.Run(ui.CLI, os.Args[2:])
 		case "authorize":
 			command_authorize.Run(ui.CLI, os.Args[2:])
+		case "authorize-batch":
+			command_authorize_batch.Run(ui.CLI, os.Args[2:])
 		case "authorize-import":
 			command_authorize_import.Run(ui.CLI, os.Args[2:])
 		case "certificate":

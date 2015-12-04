@@ -53,9 +53,11 @@ func (challenge *Challenge) UnmarshalJSON(data []byte) error {
 	var newC ChallengeImplementation = &unknownChallenge{}
 
 	switch jsonType.Type {
-	case simpleHttpIdentifier:
+	case http01Identifier:
+		newC = &challengeHttp01{}
+	case simpleHttpIdentifier: // deprecated
 		newC = &challengeSimpleHttp{}
-	case dvsniIdentifier:
+	case dvsniIdentifier: // deprecated
 		newC = &challengeDVSNI{}
 	}
 

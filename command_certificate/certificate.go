@@ -15,11 +15,13 @@ var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
 var rsabits int = 2048
 var curve utils.Curve = utils.CurveP521
 var keyType utils.KeyType = utils.KeyRSA
+var loadPrivKey string
 
 func init() {
 	register_flags.IntVar(&rsabits, "rsa-bits", 2048, "Number of bits to generate the RSA key with (if selected)")
 	register_flags.Var(&curve, "curve", "Elliptic curve to generate ECDSA key with (if selected), one of P-256, P-384, P-521")
 	register_flags.Var(&keyType, "key-type", "Key type to generate, RSA or ECDSA")
+	register_flags.StringVar(&loadPrivKey, "import-key", "", "Import private key")
 	command_base.AddStorageFlags(register_flags)
 	utils.AddLogFlags(register_flags)
 }
@@ -51,9 +53,9 @@ func Run(UI ui.UserInterface, args []string) {
 
 	var pkey interface{}
 	privateKeyGenerated := false
-	if 0 != len(register_flags.Args()) {
+	if 0 != len(loadPrivKey) {
 		pkeyPrompt, _ := UI.PasswordPromptOnce("Enter private key password")
-		if pkeyFile, err := os.Open(register_flags.Arg(0)); nil != err {
+		if pkeyFile, err := os.Open(loadPrivKey); nil != err {
 			utils.Fatalf("%s", err)
 		} else if pkey, err = utils.LoadFirstPrivateKey(pkeyFile, pkeyPrompt); nil != err {
 			utils.Fatalf("%s", err)
@@ -67,28 +69,47 @@ func Run(UI ui.UserInterface, args []string) {
 		}
 	}
 
-	UI.Messagef("Available domains: %v", validDomains)
-
 	markSelectedDomains := make(map[string]bool)
 	var selectedDomains []string
-	for {
-		domain, err := UI.Prompt("Enter domain to add to certificate (empty to end list)")
-		if err != nil {
-			utils.Fatalf("Couldn't read domain: %s", err)
+
+	if 0 != len(register_flags.Args()) {
+		for _, domain := range register_flags.Args() {
+			if 0 == len(domain) {
+				continue
+			}
+			if markSelectedDomains[domain] {
+				continue
+			}
+			markSelectedDomains[domain] = true
+			if !validAuths[domain] {
+				utils.Fatalf("Unknown domain %#v, not adding - try again", domain)
+			}
+			selectedDomains = append(selectedDomains, domain)
 		}
-		if 0 == len(domain) {
-			break
+	}
+
+	if 0 == len(selectedDomains) {
+		UI.Messagef("Available domains: %v", validDomains)
+
+		for {
+			domain, err := UI.Prompt("Enter domain to add to certificate (empty to end list)")
+			if err != nil {
+				utils.Fatalf("Couldn't read domain: %s", err)
+			}
+			if 0 == len(domain) {
+				break
+			}
+			if markSelectedDomains[domain] {
+				UI.Messagef("Already selected %#v", domain)
+				continue
+			}
+			markSelectedDomains[domain] = true
+			if !validAuths[domain] {
+				UI.Messagef("Unknown domain %#v, not adding - try again", domain)
+				continue
+			}
+			selectedDomains = append(selectedDomains, domain)
 		}
-		if markSelectedDomains[domain] {
-			UI.Messagef("Already selected %#v", domain)
-			continue
-		}
-		markSelectedDomains[domain] = true
-		if !validAuths[domain] {
-			UI.Messagef("Unknown domain %#v, not adding - try again", domain)
-			continue
-		}
-		selectedDomains = append(selectedDomains, domain)
 	}
 
 	if 0 == len(selectedDomains) {

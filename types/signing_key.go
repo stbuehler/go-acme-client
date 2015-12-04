@@ -16,6 +16,12 @@ type JSONSignature struct {
 	Signature *jose.JsonWebSignature
 }
 
+type staticNonceSource string
+
+func (sns staticNonceSource) Nonce() (string, error) {
+	return string(sns), nil
+}
+
 type SigningKey struct {
 	privateKey interface{}
 }
@@ -36,7 +42,7 @@ func (skey SigningKey) GetSignatureAlgorithm() jose.SignatureAlgorithm {
 			panic("Unknown elliptic curve")
 		}
 	case *rsa.PrivateKey:
-		return jose.PS512
+		return jose.RS256
 	default:
 		panic("Unkown private key type")
 	}
@@ -57,17 +63,18 @@ func (skey SigningKey) Sign(payload []byte, nonce string) (*jose.JsonWebSignatur
 	if nil != err {
 		return nil, err
 	}
-	return signer.Sign(payload, nonce)
+	signer.SetNonceSource(staticNonceSource(nonce))
+	return signer.Sign(payload)
 }
 
 func (skey SigningKey) Verify(signature string, payload *[]byte, nonce *string) error {
 	if sig, err := jose.ParseSigned(signature); nil != err {
 		return err
-	} else if sigPayload, sigHeader, err := sig.Verify(skey.GetPublicKey()); nil != err {
+	} else if sigPayload, err := sig.Verify(skey.GetPublicKey()); nil != err {
 		return err
 	} else {
-		if nil != nonce {
-			*nonce = sigHeader.Nonce
+		if nil != nonce && 1 == len(sig.Signatures) {
+			*nonce = sig.Signatures[0].Header.Nonce
 		}
 		if nil != payload {
 			*payload = sigPayload

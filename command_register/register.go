@@ -22,13 +22,14 @@ var agree_tos bool
 var modify bool
 var directoryURL string
 
+const lifeDirectoryURL = "https://acme-v01.api.letsencrypt.org/directory"
 const demoDirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 
 func init() {
 	register_flags.IntVar(&rsabits, "rsa-bits", 2048, "Number of bits to generate the RSA key with (if selected)")
 	register_flags.Var(&curve, "curve", "Elliptic curve to generate ECDSA key with (if selected), one of P-256, P-384, P-521")
 	register_flags.Var(&keyType, "key-type", "Key type to generate, RSA or ECDSA")
-	register_flags.StringVar(&directoryURL, "url", demoDirectoryURL, "ACME Directory URL")
+	register_flags.StringVar(&directoryURL, "url", lifeDirectoryURL, "ACME Directory URL")
 	register_flags.BoolVar(&no_refresh, "no-refresh", false, "Disable automatically fetching an updated registration")
 	register_flags.BoolVar(&show_tos, "show-tos", false, "Show Terms of service if available, even when already agreed to something")
 	register_flags.BoolVar(&agree_tos, "agree-tos", false, "Automatically agree to terms of service")
@@ -67,9 +68,9 @@ func Run(UI ui.UserInterface, args []string) {
 	} else {
 		UI.Message("Creating new registration")
 
-		dir, err := controller.GetDirectory(demoDirectoryURL, false)
+		dir, err := controller.GetDirectory(directoryURL, false)
 		if nil != err {
-			utils.Fatalf("Couldn't fetch directory for '%s': %s", demoDirectoryURL, err)
+			utils.Fatalf("Couldn't fetch directory for '%s': %s", directoryURL, err)
 		}
 
 		UI.Message("Generating private key, might take some time")

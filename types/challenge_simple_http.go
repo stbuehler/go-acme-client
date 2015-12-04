@@ -1,7 +1,6 @@
 package types
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"github.com/stbuehler/go-acme-client/ui"
@@ -18,20 +17,20 @@ type challengeSimpleHttp struct {
 	Token string `json:"token,omitempty"` // ASCII only
 }
 
-func (simpleHttps *challengeSimpleHttp) GetType() string {
-	return simpleHttps.Type
+func (simpleHttp *challengeSimpleHttp) GetType() string {
+	return simpleHttp.Type
 }
 
-func (simpleHttps *challengeSimpleHttp) GetStatus() string {
-	return simpleHttps.Status
+func (simpleHttp *challengeSimpleHttp) GetStatus() string {
+	return simpleHttp.Status
 }
 
-func (simpleHttps *challengeSimpleHttp) GetValidated() string {
-	return simpleHttps.Validated
+func (simpleHttp *challengeSimpleHttp) GetValidated() string {
+	return simpleHttp.Validated
 }
 
-func (simpleHttps *challengeSimpleHttp) GetURI() string {
-	return simpleHttps.URI
+func (simpleHttp *challengeSimpleHttp) GetURI() string {
+	return simpleHttp.URI
 }
 
 type challengeSimpleHttpData struct {
@@ -50,18 +49,18 @@ func (simpleHttpData *challengeSimpleHttpData) GetType() string {
 	return simpleHttpData.Type
 }
 
-func (simpleHttps *challengeSimpleHttp) initializeResponse(registration *Registration, authorization *Authorization) (ChallengeResponding, error) {
+func (simpleHttp *challengeSimpleHttp) initializeResponse(registration *Registration, authorization *Authorization) (ChallengeResponding, error) {
 	responding := challengeSimpleHttpResponding{
 		registration:  registration,
 		dnsIdentifier: string(authorization.Resource.DNSIdentifier),
-		challenge:     *simpleHttps,
+		challenge:     *simpleHttp,
 		data: challengeSimpleHttpData{
 			Type: simpleHttpIdentifier,
 			TLS:  true,
 		},
 	}
 
-	if oldData := authorization.ChallengesData[simpleHttps.GetURI()].chDataImpl; nil != oldData {
+	if oldData := authorization.ChallengesData[simpleHttp.GetURI()].chDataImpl; nil != oldData {
 		if oldData := oldData.(*challengeSimpleHttpData); nil != oldData {
 			responding.data = *oldData
 		}
@@ -88,21 +87,6 @@ func (responding *challengeSimpleHttpResponding) WellKnownURL() string {
 		proto,
 		responding.dnsIdentifier,
 		responding.challenge.Token)
-}
-
-var simpleHttpsClient *http.Client
-
-func getSimpleHttpsClient() *http.Client {
-	if nil == simpleHttpsClient {
-		simpleHttpsClient = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-		}
-	}
-	return simpleHttpsClient
 }
 
 func (responding *challengeSimpleHttpResponding) ResetResponse() error {
@@ -151,7 +135,7 @@ func (responding *challengeSimpleHttpResponding) ShowInstructions(UI ui.UserInte
 func (responding *challengeSimpleHttpResponding) Verify() error {
 	var httpClient *http.Client
 	if responding.data.TLS {
-		httpClient = getSimpleHttpsClient()
+		httpClient = getInsecureHttpsClient()
 	} else {
 		httpClient = &http.Client{}
 	}

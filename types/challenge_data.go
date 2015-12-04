@@ -31,9 +31,11 @@ func (cdata *ChallengeData) UnmarshalJSON(data []byte) error {
 	case "":
 		cdata.chDataImpl = nil
 		return nil
-	case simpleHttpIdentifier:
+	case http01Identifier:
+		newData = &challengeHttp01Data{}
+	case simpleHttpIdentifier: // deprecated
 		newData = &challengeSimpleHttpData{}
-	case dvsniIdentifier:
+	case dvsniIdentifier: // deprecated
 		newData = &challengeDVSNIData{}
 	}
 
