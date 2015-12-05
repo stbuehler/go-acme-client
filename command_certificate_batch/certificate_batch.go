@@ -95,13 +95,13 @@ func Run(UI ui.UserInterface, args []string) {
 
 		if pubKeyFile, err := os.Open(certFilename); nil == err {
 			pubKeyFile.Close()
-			utils.Fatalf("Certificate %#v for %s already exists", certFilename, name)
-			panic(nil)
+			UI.Messagef("Certificate %#v for %s already exists, skipping", certFilename, name)
+			continue
 		}
 		if urlFile, err := os.Open(urlFilename); nil == err {
 			urlFile.Close()
-			utils.Fatalf("URL file %#v for %s already exists", urlFilename, name)
-			panic(nil)
+			UI.Messagef("URL file %#v for %s already exists, skipping", urlFilename, name)
+			continue
 		}
 
 		if privKeyFile, err := os.Open(privKeyFilename); os.IsNotExist(err) {
