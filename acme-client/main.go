@@ -18,6 +18,7 @@ func main() {
 		println("Existing sub commands: ")
 		println("\tregister")
 		println("\tauthorize")
+		println("\tauthorize-batch")
 		println("\tauthorize-import")
 		println("\tcertificate")
 		println("\tcertificate-show")
