@@ -5,6 +5,7 @@ import (
 	"github.com/stbuehler/go-acme-client/command_authorize_batch"
 	"github.com/stbuehler/go-acme-client/command_authorize_import"
 	"github.com/stbuehler/go-acme-client/command_certificate"
+	"github.com/stbuehler/go-acme-client/command_certificate_batch"
 	"github.com/stbuehler/go-acme-client/command_certificate_show"
 	"github.com/stbuehler/go-acme-client/command_register"
 	"github.com/stbuehler/go-acme-client/ui"
@@ -21,6 +22,7 @@ func main() {
 		println("\tauthorize-batch")
 		println("\tauthorize-import")
 		println("\tcertificate")
+		println("\tcertificate-batch")
 		println("\tcertificate-show")
 		os.Exit(1)
 	} else {
@@ -35,6 +37,8 @@ func main() {
 			command_authorize_import.Run(ui.CLI, os.Args[2:])
 		case "certificate":
 			command_certificate.Run(ui.CLI, os.Args[2:])
+		case "certificate-batch":
+			command_certificate_batch.Run(ui.CLI, os.Args[2:])
 		case "certificate-show":
 			command_certificate_show.Run(ui.CLI, os.Args[2:])
 		default:

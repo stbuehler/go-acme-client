@@ -52,7 +52,6 @@ func Run(UI ui.UserInterface, args []string) {
 	}
 
 	var pkey interface{}
-	privateKeyGenerated := false
 	if 0 != len(loadPrivKey) {
 		pkeyPrompt, _ := UI.PasswordPromptOnce("Enter private key password")
 		if pkeyFile, err := os.Open(loadPrivKey); nil != err {
@@ -62,7 +61,6 @@ func Run(UI ui.UserInterface, args []string) {
 		}
 	} else {
 		UI.Message("Generating private key for certificate")
-		privateKeyGenerated = true
 		var err error
 		if pkey, err = utils.CreatePrivateKey(keyType, curve, &rsabits); nil != err {
 			utils.Fatalf("Couldn't create private key for certificate: %s", err)
@@ -132,10 +130,8 @@ func Run(UI ui.UserInterface, args []string) {
 		utils.Fatalf("Certificate request failed: %s", err)
 	}
 
-	if privateKeyGenerated {
-		if err := cert.SetPrivateKey(pkey); nil != err {
-			utils.Errorf("Couldn't store private key: %s", err)
-		}
+	if err := cert.SetPrivateKey(pkey); nil != err {
+		utils.Errorf("Couldn't store private key: %s", err)
 	}
 	certData := cert.Certificate()
 
