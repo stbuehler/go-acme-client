@@ -12,11 +12,13 @@ import (
 
 var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
 var arg_set_name string
+var arg_check_ocsp bool
 
 func init() {
 	command_base.AddStorageFlags(register_flags)
 	utils.AddLogFlags(register_flags)
 	register_flags.StringVar(&arg_set_name, "set-name", "", "Set certificate name")
+	register_flags.BoolVar(&arg_check_ocsp, "check-ocsp", false, "Check OCSP status")
 }
 
 func Run(UI ui.UserInterface, args []string) {
@@ -31,7 +33,7 @@ func Run(UI ui.UserInterface, args []string) {
 		utils.Fatalf("Cannot edit/show more than one certificate")
 	}
 
-	editMode := len(arg_set_name) > 0 // && ....
+	editMode := len(arg_set_name) > 0 || arg_check_ocsp
 
 	if 0 == len(register_flags.Args()) {
 		if editMode {
@@ -79,6 +81,19 @@ func Run(UI ui.UserInterface, args []string) {
 			if len(arg_set_name) > 0 {
 				if err := cert.SetName(arg_set_name); nil != err {
 					utils.Fatalf("Couldn't set name to %#v: %v", arg_set_name, err)
+				}
+			}
+
+			if arg_check_ocsp {
+				if status, err := CheckOCSP(certData); nil != err {
+					UI.Messagef("Couldn't check OCSP status: %v", err)
+				} else {
+					UI.Messagef("OCSP status: %s", status)
+					if status == Revoked && !certData.Revoked {
+						if err := cert.SetRevoked(true); nil != err {
+							utils.Fatalf("Couldn't set revoked to true", err)
+						}
+					}
 				}
 			}
 		} else {
