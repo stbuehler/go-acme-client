@@ -84,12 +84,6 @@ func FetchCertificate(certURL string) (*types.Certificate, error) {
 		return nil, fmt.Errorf("Unexpected response Content-Type: %s, expected application/pkix-cert", resp.ContentType)
 	}
 
-	var response types.Certificate
-	err = json.Unmarshal(resp.Body, &response)
-	if nil != err {
-		return nil, fmt.Errorf("Failed decoding response from GET %s: %s", certURL, err)
-	}
-
 	cert, err := x509.ParseCertificate(resp.Body)
 	if nil != err {
 		return nil, fmt.Errorf("Couldn't parse returned certificate: %s", err)
