@@ -13,8 +13,10 @@ type CertificateModel interface {
 
 	Certificate() types.Certificate
 
+	Revoke() error
+
 	SetName(name string) error
-	SetRevoked(revoked bool) error
+	SetRevoked(revoked bool) error // this just sets the internal revoked state, it doesn't actually revoke anything
 	SetPrivateKey(privateKey interface{}) error
 }
 
@@ -33,6 +35,24 @@ func (cert *certificate) Refresh() error {
 
 func (cert *certificate) Certificate() types.Certificate {
 	return *cert.scert.Certificate()
+}
+
+func (cert *certificate) Revoke() error {
+	if cert.Certificate().Revoked {
+		// don't revoke again
+		return nil
+	}
+
+	sreg := cert.reg.sreg
+	if err := requests.RevokeCertificate(sreg.Directory(), sreg.Registration().SigningKey, cert.scert.Certificate()); nil != err {
+		return err
+	}
+
+	if err := cert.SetRevoked(true); nil != err {
+		return err
+	}
+
+	return nil
 }
 
 func (cert *certificate) SetName(name string) error {

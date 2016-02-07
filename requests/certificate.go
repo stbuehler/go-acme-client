@@ -95,3 +95,38 @@ func FetchCertificate(certURL string) (*types.Certificate, error) {
 		Certificate: cert,
 	}, nil
 }
+
+type revokeCertificate struct {
+	Resource    types.ResourceRevokeCertificateTag `json:"resource"`
+	Certificate string                             `json:"certificate"`
+}
+
+func RevokeCertificate(directory *types.Directory, signingKey types.SigningKey, certificate *types.Certificate) error {
+	payload := revokeCertificate{
+		Certificate: utils.Base64UrlEncode(certificate.Certificate.Raw),
+	}
+
+	payloadJson, err := json.Marshal(payload)
+	if nil != err {
+		return err
+	}
+
+	url := directory.Resource.RevokeCertificate
+	req := utils.HttpRequest{
+		Method: "POST",
+		URL:    url,
+		Headers: utils.HttpRequestHeader{
+			ContentType: "application/json",
+		},
+	}
+	resp, err := RunSignedRequest(signingKey, &req, payloadJson)
+	if nil != err {
+		return fmt.Errorf("POST revoke certificate %s to %s failed: %s", string(payloadJson), url, err)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("POST revoke certificate %s to %s failed: %s", string(payloadJson), url, resp.Status)
+	}
+
+	return nil
+}
