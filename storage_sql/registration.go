@@ -141,8 +141,8 @@ type sqlStorageRegistration struct {
 	registration types.Registration
 }
 
-func (storage *sqlStorage) checkRegistrationTable() error {
-	_, err := storage.db.Exec(
+func checkRegistrationTable(tx *sql.Tx) error {
+	_, err := tx.Exec(
 		`CREATE TABLE IF NOT EXISTS registration (
 			id INTEGER PRIMARY KEY,
 			directory_id INTEGER NOT NULL,

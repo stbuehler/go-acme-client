@@ -10,10 +10,12 @@ import (
 )
 
 var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
+var arg_refresh bool
 
 func init() {
 	command_base.AddStorageFlags(register_flags)
 	utils.AddLogFlags(register_flags)
+	register_flags.BoolVar(&arg_refresh, "refresh", false, "refresh status of locally known authorizations")
 }
 
 func Run(UI ui.UserInterface, args []string) {
@@ -33,7 +35,7 @@ func Run(UI ui.UserInterface, args []string) {
 		utils.Base64UrlEncode(keyhash))
 
 	for _, domain := range register_flags.Args() {
-		if auth, err := reg.GetAuthorizationByDNS(domain, true); nil != err {
+		if auth, err := reg.GetAuthorizationByDNS(domain, arg_refresh); nil != err {
 			utils.Fatalf("Couldn't load authorization for %v: %v", domain, err)
 		} else {
 			if nil == auth {

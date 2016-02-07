@@ -24,11 +24,13 @@ type RegistrationModel interface {
 	AuthorizeDNS(dnsIdentifier string) (AuthorizationModel, error)
 
 	CertificateInfos() ([]storage_interface.CertificateInfo, error)
+	CertificateInfosAll() ([]storage_interface.CertificateInfo, error)
 	Certificates() ([]CertificateModel, error)
-	LoadCertificate(certURL string) (CertificateModel, error)
+	CertificatesAll() ([]CertificateModel, error)
+	LoadCertificate(locationOrName string) (CertificateModel, error)
 	FetchAllCertificates(updateAll bool) error
 	ImportCertificate(certURL string, refresh bool) (CertificateModel, error)
-	NewCertificate(csr pem.Block) (CertificateModel, error)
+	NewCertificate(name string, csr pem.Block) (CertificateModel, error)
 }
 
 type registration struct {

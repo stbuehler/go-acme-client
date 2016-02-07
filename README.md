@@ -8,7 +8,8 @@ The security benefit is that the registration (consisting of a private key) can
 be kept offline, instead of keeping it on the live server as intended by the
 letsencrypt project.
 
-THIS PROJECT IS STILL EXPERIMENTAL; EACH UPDATE MIGHT BREAK THE LOCAL STORAGE.
+THIS PROJECT IS STILL EXPERIMENTAL; BUT UPDATES SHOULD NOT BREAK THE
+LOCAL STORAGE ANYMORE. KEEPING BACKUPS IS STILL RECOMMENDED.
 
 ## Install
 
@@ -59,7 +60,7 @@ with all the domain names you want to authorize.
 
 ### Create a certificate
 
-	$GOPATH/bin/acme-client certificate [domains...]
+	$GOPATH/bin/acme-client certificate-get [domains...]
 
 You can give it a private key to use (by default it wil generate a 2048-bit RSA key).
 

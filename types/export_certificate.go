@@ -1,11 +1,14 @@
 package types
 
 import (
+	"crypto/x509"
 	"encoding/pem"
 	"github.com/stbuehler/go-acme-client/utils"
 )
 
 type CertificateExport struct {
+	Name           string
+	Revoked        bool
 	CertificatePem []byte
 	PrivateKeyPem  []byte
 	Location       string
@@ -17,6 +20,10 @@ func (cert *Certificate) Import(export CertificateExport, prompt PasswordPrompt)
 	if nil != err {
 		return err
 	}
+	certificate, err := x509.ParseCertificate(certificateBlock.Bytes)
+	if nil != err {
+		return err
+	}
 	var privateKeyBlock *pem.Block
 	if nil != export.PrivateKeyPem {
 		privateKeyBlock, err = importPem(export.PrivateKeyPem, prompt, pemTypeEcPrivateKey, pemTypeRsaPrivateKey)
@@ -25,7 +32,9 @@ func (cert *Certificate) Import(export CertificateExport, prompt PasswordPrompt)
 		}
 	}
 
-	cert.Certificate = certificateBlock
+	cert.Name = export.Name
+	cert.Revoked = export.Revoked
+	cert.Certificate = certificate
 	cert.PrivateKey = privateKeyBlock
 	cert.Location = export.Location
 	cert.LinkIssuer = export.LinkIssuer
@@ -44,7 +53,9 @@ func (cert Certificate) Export(password string) (*CertificateExport, error) {
 	}
 
 	return &CertificateExport{
-		CertificatePem: pem.EncodeToMemory(cert.Certificate),
+		Name:           cert.Name,
+		Revoked:        cert.Revoked,
+		CertificatePem: pem.EncodeToMemory(utils.CertificateToPem(cert.Certificate)),
 		PrivateKeyPem:  privateKeyBlob,
 		Location:       cert.Location,
 		LinkIssuer:     cert.LinkIssuer,

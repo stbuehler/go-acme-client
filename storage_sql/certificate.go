@@ -1,9 +1,13 @@
 package storage_sql
 
 import (
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
+	"fmt"
 	i "github.com/stbuehler/go-acme-client/storage_interface"
 	"github.com/stbuehler/go-acme-client/types"
+	"github.com/stbuehler/go-acme-client/utils"
 )
 
 // --------------------------------------------------------------------
@@ -61,11 +65,16 @@ func (sreg *sqlStorageRegistration) NewCertificate(cert types.Certificate) (i.St
 		return nil, err
 	}
 
+	name := &cert.Name
+	if len(cert.Name) == 0 {
+		name = nil
+	}
+
 	_, err = sreg.storage.db.Exec(
-		`INSERT INTO certificate (registration_id, location, linkIssuer, certificatePem, privateKeyPem) VALUES
-			($1, $2, $3, $4, $5)`,
-		sreg.id, cert.Location, cert.LinkIssuer,
-		export.CertificatePem, export.PrivateKeyPem)
+		`INSERT INTO certificate (registration_id, name, revoked, expires, location, linkIssuer, certificatePem, privateKeyPem) VALUES
+			($1, $2, $3, $4, $5, $6, $7, $8)`,
+		sreg.id, name, cert.Revoked, cert.Certificate.NotAfter, cert.Location,
+		cert.LinkIssuer, export.CertificatePem, export.PrivateKeyPem)
 	if nil != err {
 		return nil, err
 	}
@@ -75,8 +84,27 @@ func (sreg *sqlStorageRegistration) NewCertificate(cert types.Certificate) (i.St
 
 func (sreg *sqlStorageRegistration) CertificateInfos() ([]i.CertificateInfo, error) {
 	rows, err := sreg.storage.db.Query(
-		`SELECT location, linkIssuer FROM certificate WHERE registration_id = $1`,
-		sreg.id)
+		`SELECT name, revoked, location, linkIssuer, certificatePem
+		FROM certificate
+		WHERE registration_id = $1
+			AND NOT revoked
+			AND expires > CURRENT_TIMESTAMP
+		ORDER BY id DESC
+		`, sreg.id)
+	if nil != err {
+		return nil, err
+	}
+	defer rows.Close()
+	return certInfoListFromRows(rows)
+}
+
+func (sreg *sqlStorageRegistration) CertificateInfosAll() ([]i.CertificateInfo, error) {
+	rows, err := sreg.storage.db.Query(
+		`SELECT name, revoked, location, linkIssuer, certificatePem
+		FROM certificate
+		WHERE registration_id = $1
+		ORDER BY id DESC
+		`, sreg.id)
 	if nil != err {
 		return nil, err
 	}
@@ -86,9 +114,13 @@ func (sreg *sqlStorageRegistration) CertificateInfos() ([]i.CertificateInfo, err
 
 func (sreg *sqlStorageRegistration) Certificates() ([]i.StorageCertificate, error) {
 	if rows, err := sreg.storage.db.Query(
-		`SELECT id, registration_id, location, linkIssuer, certificatePem, privateKeyPem
+		`SELECT id, registration_id, name, revoked, location, linkIssuer, certificatePem, privateKeyPem
 		FROM certificate
-		WHERE registration_id = $1`, sreg.id); nil != err {
+		WHERE registration_id = $1
+			AND NOT revoked
+			AND expires > CURRENT_TIMESTAMP
+		ORDER BY id DESC
+		`, sreg.id); nil != err {
 		return nil, err
 	} else {
 		defer rows.Close()
@@ -105,11 +137,34 @@ func (sreg *sqlStorageRegistration) Certificates() ([]i.StorageCertificate, erro
 	}
 }
 
-func (sreg *sqlStorageRegistration) LoadCertificate(location string) (i.StorageCertificate, error) {
+func (sreg *sqlStorageRegistration) CertificatesAll() ([]i.StorageCertificate, error) {
 	if rows, err := sreg.storage.db.Query(
-		`SELECT id, registration_id, location, linkIssuer, certificatePem, privateKeyPem
+		`SELECT id, registration_id, name, revoked, location, linkIssuer, certificatePem, privateKeyPem
 		FROM certificate
-		WHERE registration_id = $1 AND location = $2`, sreg.id, location); nil != err {
+		WHERE registration_id = $1
+		ORDER BY id DESC
+		`, sreg.id); nil != err {
+		return nil, err
+	} else {
+		defer rows.Close()
+		result := []i.StorageCertificate{}
+		for {
+			if scert, err := sreg.storage.loadCertificateFromSql(rows, sreg); nil != err {
+				return nil, err
+			} else if nil == scert {
+				return result, nil
+			} else {
+				result = append(result, scert)
+			}
+		}
+	}
+}
+
+func (sreg *sqlStorageRegistration) LoadCertificate(locationOrName string) (i.StorageCertificate, error) {
+	if rows, err := sreg.storage.db.Query(
+		`SELECT id, registration_id, name, revoked, location, linkIssuer, certificatePem, privateKeyPem
+		FROM certificate
+		WHERE registration_id = $1 AND (location = $2 OR name = $2)`, sreg.id, locationOrName); nil != err {
 		return nil, err
 	} else {
 		defer rows.Close()
@@ -133,33 +188,133 @@ type sqlStorageCertificate struct {
 	certificate  types.Certificate
 }
 
-func (storage *sqlStorage) checkCertificateTable() error {
-	_, err := storage.db.Exec(
-		`CREATE TABLE IF NOT EXISTS certificate (
-			id INTEGER PRIMARY KEY,
-			registration_id INT NOT NULL,
-			location TEXT NOT NULL,
-			linkIssuer TEXT NOT NULL,
-			certificatePem BLOB NOT NULL,
-			privateKeyPem BLOB,
-			FOREIGN KEY(registration_id) REFERENCES registration(id),
-			UNIQUE (registration_id, location)
-		)`)
-	return err
+func checkCertificateTable(tx *sql.Tx) error {
+	if version, err := schemaGetVersion(tx, `certificate`); nil != err {
+		return err
+	} else if nil == version {
+		if _, err := tx.Exec(
+			`CREATE TABLE certificate (
+				id INTEGER PRIMARY KEY,
+				registration_id INT NOT NULL,
+				name TEXT,
+				revoked INT NOT NULL,
+				expires TEXT NOT NULL,
+				location TEXT NOT NULL,
+				linkIssuer TEXT NOT NULL,
+				certificatePem BLOB NOT NULL,
+				privateKeyPem BLOB,
+				FOREIGN KEY(registration_id) REFERENCES registration(id),
+				UNIQUE (registration_id, location),
+				CONSTRAINT certificate_unique_reg_name UNIQUE (registration_id, name)
+			)`); nil != err {
+			return err
+		}
+		if err := schemaSetVersion(tx, `certificate`, 1); nil != err {
+			return err
+		}
+	} else {
+		switch *version {
+		case -1:
+			// add name, expires and revoked
+			if _, err := tx.Exec(
+				`ALTER TABLE certificate ADD COLUMN name TEXT
+				`); nil != err {
+				return err
+			}
+			if _, err := tx.Exec(
+				`CREATE UNIQUE INDEX certificate_unique_reg_name ON certificate (registration_id, name)
+				`); nil != err {
+				return err
+			}
+			if _, err := tx.Exec(
+				`ALTER TABLE certificate ADD COLUMN expires TEXT NOT NULL DEFAULT ''
+				`); nil != err {
+				return err
+			}
+			if _, err := tx.Exec(
+				`ALTER TABLE certificate ADD COLUMN revoked INT NOT NULL DEFAULT 0
+				`); nil != err {
+				return err
+			}
+			if err := schemaSetVersion(tx, `certificate`, 1); nil != err {
+				return err
+			}
+			utils.Infof("Updating certificate table, assigning names")
+			if rows, err := tx.Query(
+				`SELECT id, certificatePem FROM certificate ORDER BY id DESC
+			`); nil != err {
+				return err
+			} else {
+				defer rows.Close()
+				for rows.Next() {
+					var id int64
+					var certificatePem []byte
+					if err := rows.Scan(&id, &certificatePem); nil != err {
+						return err
+					}
+					certBlock, _ := pem.Decode(certificatePem)
+					if certBlock.Type != "CERTIFICATE" {
+						return fmt.Errorf("Couldn't decode certificate id %v: unexpected block type %#v", id, certBlock.Type)
+					}
+					if cert, err := x509.ParseCertificate(certBlock.Bytes); nil != err {
+						utils.Debugf("Couldn't parse certificate id %v: %v", id, err)
+						return fmt.Errorf("Couldn't parse certificate id %v: %v", id, err)
+					} else {
+						if _, err := tx.Exec(`UPDATE OR FAIL certificate SET expires = $1 WHERE id = $2`, cert.NotAfter, id); nil != err {
+							return fmt.Errorf("Couldn't set expires for certificate id %d: %v", id, err)
+						}
+
+						name := cert.Subject.CommonName
+						utils.Debugf("Trying to name certificate id %v %#v", id, name)
+						if _, err := tx.Exec(`UPDATE OR FAIL certificate SET name = $1 WHERE id = $2`, name, id); nil != err {
+							utils.Debugf("Couldn't name certificate %#v, name probably already in use; trying to append #%d: %v", name, id, err)
+							// try appending #id to name
+							name = fmt.Sprintf("%s#%d", name, id)
+							if _, err := tx.Exec(`UPDATE OR FAIL  certificate SET name = $1 WHERE id = $2`, name, id); nil != err {
+								return fmt.Errorf("Couldn't name certificate %#v or %#v: %v", cert.Subject.CommonName, name, err)
+							}
+						}
+					}
+				}
+			}
+			utils.Infof("Finished updating certificate table")
+		case 1:
+			// current version
+		default:
+			return fmt.Errorf("Unsupported schema_version %d for %s", version, `certificate`)
+		}
+	}
+	return nil
 }
 
 func certInfoListFromRows(rows *sql.Rows) ([]i.CertificateInfo, error) {
 	var certs []i.CertificateInfo
 	for rows.Next() {
-		var location string
-		var linkIssuer string
-		if err := rows.Scan(&location, &linkIssuer); nil != err {
+		var name, location, linkIssuer string
+		var revoked bool
+		var certificatePem []byte
+		if err := rows.Scan(&name, &revoked, &location, &linkIssuer, &certificatePem); nil != err {
 			return nil, err
 		}
-		certs = append(certs, i.CertificateInfo{
+
+		info := i.CertificateInfo{
+			Name:       name,
+			Revoked:    revoked,
 			Location:   location,
 			LinkIssuer: linkIssuer,
-		})
+		}
+
+		// ignore errors in certificate
+		certBlock, _ := pem.Decode(certificatePem)
+		if certBlock.Type != "CERTIFICATE" {
+			utils.Debugf("Couldn't decode certificate %v: unexpected block type %#v", location, certBlock.Type)
+		} else if cert, err := x509.ParseCertificate(certBlock.Bytes); nil != err {
+			utils.Debugf("Couldn't parse certificate %v: %v", location, err)
+		} else {
+			info.Certificate = cert
+		}
+
+		certs = append(certs, info)
 	}
 	return certs, nil
 }
@@ -170,10 +325,11 @@ func (storage *sqlStorage) loadCertificateFromSql(rows *sql.Rows, sregHint *sqlS
 	}
 
 	var id, registration_id int64
-	var location, linkIssuer string
+	var name, location, linkIssuer string
+	var revoked bool
 	var certificatePem []byte
 	var privateKeyPem sql.NullString
-	if err := rows.Scan(&id, &registration_id, &location, &linkIssuer, &certificatePem, &privateKeyPem); nil != err {
+	if err := rows.Scan(&id, &registration_id, &name, &revoked, &location, &linkIssuer, &certificatePem, &privateKeyPem); nil != err {
 		return nil, err
 	}
 
@@ -190,6 +346,8 @@ func (storage *sqlStorage) loadCertificateFromSql(rows *sql.Rows, sregHint *sqlS
 
 	if err := cert.certificate.Import(
 		types.CertificateExport{
+			Name:           name,
+			Revoked:        revoked,
 			CertificatePem: certificatePem,
 			PrivateKeyPem:  privKeyPem,
 			Location:       location,
@@ -207,12 +365,18 @@ func (storage *sqlStorage) saveCertificate(id int64, registration_id int64, cert
 		return err
 	}
 
+	name := &cert.Name
+	if len(cert.Name) == 0 {
+		name = nil
+	}
+
 	_, err = storage.db.Exec(
 		`UPDATE certificate SET
-			registration_id = $1, location = $2, linkIssuer = $3, certificatePem = $4, privateKeyPem = $5
-		WHERE id = $6`,
-		registration_id, cert.Location, cert.LinkIssuer,
-		export.CertificatePem, export.PrivateKeyPem, id)
+			registration_id = $1, name = $2, revoked = $3, expires = $4, location = $5, linkIssuer = $6, certificatePem = $7, privateKeyPem = $8
+		WHERE id = $9`,
+		registration_id, name, cert.Revoked, cert.Certificate.NotAfter,
+		cert.Location, cert.LinkIssuer, export.CertificatePem,
+		export.PrivateKeyPem, id)
 
 	return err
 }

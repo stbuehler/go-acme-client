@@ -25,6 +25,13 @@ type CertificateParameters struct {
 	SerialNumber              *big.Int
 }
 
+func CertificateToPem(cert *x509.Certificate) *pem.Block {
+	return &pem.Block{
+		Bytes: cert.Raw,
+		Type:  pemTypeCertificate,
+	}
+}
+
 func MakeSerialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, serialNumberLimit)
 }

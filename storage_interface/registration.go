@@ -1,6 +1,7 @@
 package storage_interface
 
 import (
+	"crypto/x509"
 	"github.com/stbuehler/go-acme-client/types"
 	"time"
 )
@@ -16,8 +17,11 @@ type AuthorizationInfo struct {
 type AuthorizationInfos map[string][]AuthorizationInfo
 
 type CertificateInfo struct {
-	Location   string
-	LinkIssuer string
+	Name        string
+	Revoked     bool
+	Location    string
+	LinkIssuer  string
+	Certificate *x509.Certificate
 }
 
 type StorageRegistrationComponent interface {
@@ -42,8 +46,10 @@ type StorageRegistration interface {
 
 	NewCertificate(cert types.Certificate) (StorageCertificate, error)
 	CertificateInfos() ([]CertificateInfo, error)
+	CertificateInfosAll() ([]CertificateInfo, error) // also return expired+revoked
 	Certificates() ([]StorageCertificate, error)
-	LoadCertificate(location string) (StorageCertificate, error)
+	CertificatesAll() ([]StorageCertificate, error) // also return expired+revoked
+	LoadCertificate(locationOrName string) (StorageCertificate, error)
 
 	Delete() error
 }

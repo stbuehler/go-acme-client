@@ -13,6 +13,8 @@ type CertificateModel interface {
 
 	Certificate() types.Certificate
 
+	SetName(name string) error
+	SetRevoked(revoked bool) error
 	SetPrivateKey(privateKey interface{}) error
 }
 
@@ -31,6 +33,26 @@ func (cert *certificate) Refresh() error {
 
 func (cert *certificate) Certificate() types.Certificate {
 	return *cert.scert.Certificate()
+}
+
+func (cert *certificate) SetName(name string) error {
+	data := cert.Certificate()
+	if data.Name != name {
+		data.Name = name
+		return cert.scert.SetCertificate(data)
+	} else {
+		return nil
+	}
+}
+
+func (cert *certificate) SetRevoked(revoked bool) error {
+	data := cert.Certificate()
+	if data.Revoked != revoked {
+		data.Revoked = revoked
+		return cert.scert.SetCertificate(data)
+	} else {
+		return nil
+	}
 }
 
 func (cert *certificate) SetPrivateKey(privateKey interface{}) error {
@@ -75,6 +97,10 @@ func (reg *registration) CertificateInfos() ([]storage_interface.CertificateInfo
 	return reg.sreg.CertificateInfos()
 }
 
+func (reg *registration) CertificateInfosAll() ([]storage_interface.CertificateInfo, error) {
+	return reg.sreg.CertificateInfosAll()
+}
+
 func (reg *registration) Certificates() ([]CertificateModel, error) {
 	if scerts, err := reg.sreg.Certificates(); nil != err {
 		return nil, err
@@ -90,8 +116,23 @@ func (reg *registration) Certificates() ([]CertificateModel, error) {
 	}
 }
 
-func (reg *registration) LoadCertificate(certURL string) (CertificateModel, error) {
-	if cert, err := reg.sreg.LoadCertificate(certURL); nil != err {
+func (reg *registration) CertificatesAll() ([]CertificateModel, error) {
+	if scerts, err := reg.sreg.CertificatesAll(); nil != err {
+		return nil, err
+	} else {
+		certs := make([]CertificateModel, len(scerts))
+		for ndx, scert := range scerts {
+			certs[ndx] = &certificate{
+				reg:   reg,
+				scert: scert,
+			}
+		}
+		return certs, nil
+	}
+}
+
+func (reg *registration) LoadCertificate(locationOrName string) (CertificateModel, error) {
+	if cert, err := reg.sreg.LoadCertificate(locationOrName); nil != err {
 		return nil, err
 	} else if nil != cert {
 		return &certificate{reg: reg, scert: cert}, nil
@@ -123,12 +164,15 @@ func (reg *registration) ImportCertificate(certURL string, refresh bool) (Certif
 	}
 }
 
-func (reg *registration) NewCertificate(csr pem.Block) (CertificateModel, error) {
+func (reg *registration) NewCertificate(name string, csr pem.Block) (CertificateModel, error) {
 	if certData, err := requests.NewCertificate(reg.sreg.Directory(), reg.sreg.Registration().SigningKey, csr); nil != err {
 		return nil, err
-	} else if cert, err := reg.sreg.NewCertificate(*certData); nil != err {
-		return nil, err
 	} else {
-		return &certificate{reg: reg, scert: cert}, nil
+		certData.Name = name
+		if cert, err := reg.sreg.NewCertificate(*certData); nil != err {
+			return nil, err
+		} else {
+			return &certificate{reg: reg, scert: cert}, nil
+		}
 	}
 }

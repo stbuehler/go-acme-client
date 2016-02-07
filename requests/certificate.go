@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -49,13 +50,15 @@ func NewCertificate(directory *types.Directory, signingKey types.SigningKey, csr
 		return nil, fmt.Errorf("Unexpected response Content-Type: %s, expected application/pkix-cert", resp.ContentType)
 	}
 
+	cert, err := x509.ParseCertificate(resp.Body)
+	if nil != err {
+		return nil, fmt.Errorf("Couldn't parse returned certificate: %s", err)
+	}
+
 	return &types.Certificate{
-		Location:   resp.Location,
-		LinkIssuer: resp.Links["up"].URL,
-		Certificate: &pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: resp.Body,
-		},
+		Location:    resp.Location,
+		LinkIssuer:  resp.Links["up"].URL,
+		Certificate: cert,
 	}, nil
 }
 
@@ -87,12 +90,14 @@ func FetchCertificate(certURL string) (*types.Certificate, error) {
 		return nil, fmt.Errorf("Failed decoding response from GET %s: %s", certURL, err)
 	}
 
+	cert, err := x509.ParseCertificate(resp.Body)
+	if nil != err {
+		return nil, fmt.Errorf("Couldn't parse returned certificate: %s", err)
+	}
+
 	return &types.Certificate{
-		Location:   certURL,
-		LinkIssuer: resp.Links["up"].URL,
-		Certificate: &pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: resp.Body,
-		},
+		Location:    certURL,
+		LinkIssuer:  resp.Links["up"].URL,
+		Certificate: cert,
 	}, nil
 }

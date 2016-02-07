@@ -113,8 +113,8 @@ type sqlStorageDirectory struct {
 	directory types.Directory
 }
 
-func (storage *sqlStorage) checkDirectoryTable() error {
-	_, err := storage.db.Exec(
+func checkDirectoryTable(tx *sql.Tx) error {
+	_, err := tx.Exec(
 		`CREATE TABLE IF NOT EXISTS directory (
 			id INTEGER PRIMARY KEY,
 			rootURL TEXT NOT NULL,

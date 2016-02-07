@@ -3,12 +3,14 @@ package command_certificate_batch
 import (
 	"encoding/pem"
 	"flag"
+	"fmt"
 	"github.com/stbuehler/go-acme-client/command_base"
 	"github.com/stbuehler/go-acme-client/types"
 	"github.com/stbuehler/go-acme-client/ui"
 	"github.com/stbuehler/go-acme-client/utils"
 	"os"
 	"strings"
+	"time"
 )
 
 var certificate_batch_flags = flag.NewFlagSet("certificate-batch", flag.ExitOnError)
@@ -79,6 +81,27 @@ func Run(UI ui.UserInterface, args []string) {
 			panic(nil)
 		}
 
+		overwrite := false
+
+		if existingCert, err := reg.LoadCertificate(name); nil != err {
+			utils.Fatalf("Loading certificate with name %#v failed: %v", name, err)
+		} else if nil != existingCert {
+			expires := existingCert.Certificate().Certificate.NotAfter
+			prompt := fmt.Sprintf("Certificate with name %#v already exists (expires in %s). Replace it? [y/N] ", name, utils.FormatDuration(expires.Sub(time.Now())))
+			if result, err := UI.Prompt(prompt); nil != err {
+				utils.Fatalf("Prompt failed: %v", err)
+			} else if result == "Y" || result == "y" {
+				overwrite = true
+				newName := name + "#" + expires.Format(time.RFC3339)
+				if err := existingCert.SetName(newName); nil != err {
+					utils.Fatalf("Couldn't change name of existing certificate %#v to %#v", name, newName)
+				}
+			} else {
+				UI.Messagef("Skipping certificate %#v", name)
+				continue
+			}
+		}
+
 		for _, domain := range selectedDomains {
 			if !validAuths[domain] {
 				utils.Fatalf("Unknown domain %#v, cannot create certificate", domain)
@@ -93,15 +116,27 @@ func Run(UI ui.UserInterface, args []string) {
 
 		var privKey interface{}
 
-		if pubKeyFile, err := os.Open(certFilename); nil == err {
-			pubKeyFile.Close()
-			UI.Messagef("Certificate %#v for %s already exists, skipping", certFilename, name)
-			continue
+		if certFile, err := os.Open(certFilename); nil == err {
+			certFile.Close()
+			if overwrite {
+				if err := os.Remove(certFilename); nil != err {
+					utils.Fatalf("Couldn't remove old certificate file %#v", certFilename)
+				}
+			} else {
+				UI.Messagef("Certificate %#v for %s already exists, skipping", certFilename, name)
+				continue
+			}
 		}
 		if urlFile, err := os.Open(urlFilename); nil == err {
 			urlFile.Close()
-			UI.Messagef("URL file %#v for %s already exists, skipping", urlFilename, name)
-			continue
+			if overwrite {
+				if err := os.Remove(urlFilename); nil != err {
+					utils.Fatalf("Couldn't remove old certificate file %#v", urlFilename)
+				}
+			} else {
+				UI.Messagef("URL file %#v for %s already exists, skipping", urlFilename, name)
+				continue
+			}
 		}
 
 		if privKeyFile, err := os.Open(privKeyFilename); os.IsNotExist(err) {
@@ -144,7 +179,7 @@ func Run(UI ui.UserInterface, args []string) {
 
 		utils.Debugf("CSR:\n%s", pem.EncodeToMemory(csr))
 
-		cert, err := reg.NewCertificate(*csr)
+		cert, err := reg.NewCertificate(name, *csr)
 		if nil != err {
 			utils.Fatalf("Certificate request failed: %s", err)
 			panic(nil)
@@ -172,7 +207,7 @@ func Run(UI ui.UserInterface, args []string) {
 		if certFile, err := os.OpenFile(certFilename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644); nil != err {
 			utils.Fatalf("Couldn't create certificate file for %s at %#v", name, certFilename)
 			panic(nil)
-		} else if err := pem.Encode(certFile, certData.Certificate); nil != err {
+		} else if err := pem.Encode(certFile, utils.CertificateToPem(certData.Certificate)); nil != err {
 			certFile.Close()
 			os.Remove(certFilename)
 			utils.Fatalf("Couldn't write certificate for %s to %#v", name, certFilename)

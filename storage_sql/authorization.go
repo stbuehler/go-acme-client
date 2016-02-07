@@ -2,10 +2,8 @@ package storage_sql
 
 import (
 	"database/sql"
-	"encoding/json"
 	i "github.com/stbuehler/go-acme-client/storage_interface"
 	"github.com/stbuehler/go-acme-client/types"
-	"time"
 )
 
 // --------------------------------------------------------------------
@@ -155,8 +153,8 @@ type sqlStorageAuthorization struct {
 	authorization types.Authorization
 }
 
-func (storage *sqlStorage) checkAuthorizationTable() error {
-	_, err := storage.db.Exec(
+func checkAuthorizationTable(tx *sql.Tx) error {
+	_, err := tx.Exec(
 		`CREATE TABLE IF NOT EXISTS authorization (
 			id INTEGER PRIMARY KEY,
 			registration_id INT NOT NULL,
@@ -171,20 +169,6 @@ func (storage *sqlStorage) checkAuthorizationTable() error {
 	return err
 }
 
-func timeFromSql(sqlTime sql.NullString) (*time.Time, error) {
-	if sqlTime.Valid {
-		timeStamp := &time.Time{}
-		if timeStampJson, err := json.Marshal(sqlTime.String); nil != err {
-			return nil, err
-		} else if err := json.Unmarshal(timeStampJson, timeStamp); nil != err {
-			return nil, err
-		}
-		return timeStamp, nil
-	} else {
-		return nil, nil
-	}
-}
-
 func authInfoListFromRows(rows *sql.Rows) (i.AuthorizationInfos, error) {
 	regs := make(map[string][]i.AuthorizationInfo)
 	for rows.Next() {
@@ -195,7 +179,7 @@ func authInfoListFromRows(rows *sql.Rows) (i.AuthorizationInfos, error) {
 		if err := rows.Scan(&dnsName, &location, &status, &expiresString); nil != err {
 			return nil, err
 		}
-		expires, err := timeFromSql(expiresString)
+		expires, err := timeFromSqlNullstring(expiresString)
 		if nil != err {
 			return nil, err
 		}

@@ -53,16 +53,29 @@ func Open(UI ui.UserInterface, db *sql.DB) (i.Storage, error) {
 		passwordPrompt: pwPrompt,
 		lastPassword:   lastPassword,
 	}
-	if err := storage.checkDirectoryTable(); nil != err {
+	if tx, err := storage.db.Begin(); nil != err {
 		return nil, err
-	}
-	if err := storage.checkRegistrationTable(); nil != err {
+	} else if err := func() error {
+		if err := checkSchemaVersionsTable(tx); nil != err {
+			return err
+		}
+		if err := checkDirectoryTable(tx); nil != err {
+			return err
+		}
+		if err := checkRegistrationTable(tx); nil != err {
+			return err
+		}
+		if err := checkAuthorizationTable(tx); nil != err {
+			return err
+		}
+		if err := checkCertificateTable(tx); nil != err {
+			return err
+		}
+		return nil
+	}(); nil != err {
+		tx.Rollback()
 		return nil, err
-	}
-	if err := storage.checkAuthorizationTable(); nil != err {
-		return nil, err
-	}
-	if err := storage.checkCertificateTable(); nil != err {
+	} else if err := tx.Commit(); nil != err {
 		return nil, err
 	}
 
