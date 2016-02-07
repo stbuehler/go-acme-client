@@ -97,12 +97,17 @@ func DebugLogHttpRequest(req *HttpRequest, hReq *http.Request) {
 		}
 		msg += "\t\n"
 
-		if nil != req.Body {
-			for _, line := range strings.Split(string(req.Body), "\n") {
-				msg += "\t" + strings.TrimRightFunc(line, unicode.IsSpace) + "\n"
+		contentType := req.Headers.ContentType
+		if 0 == len(contentType) || strings.Contains(contentType, "text") || strings.Contains(contentType, "json") {
+			if nil != req.Body {
+				for _, line := range strings.Split(string(req.Body), "\n") {
+					msg += "\t" + strings.TrimRightFunc(line, unicode.IsSpace) + "\n"
+				}
 			}
-			log.Print(msg)
+		} else {
+			msg += fmt.Sprintf("\t<not showing possibly binary data for Content-Type %s", contentType)
 		}
+		log.Print(msg)
 	}
 }
 
@@ -117,7 +122,8 @@ func DebugLogHttpResponse(resp *HttpResponse) {
 		}
 		msg += "\t\n"
 
-		if 0 == len(resp.ContentType) || strings.Contains(resp.ContentType, "text") || strings.Contains(resp.ContentType, "json") {
+		contentType := resp.ContentType
+		if 0 == len(contentType) || strings.Contains(contentType, "text") || strings.Contains(contentType, "json") {
 			if nil == resp.Body {
 				var err error
 				resp.Body, err = ioutil.ReadAll(resp.RawResponse.Body)
@@ -128,10 +134,9 @@ func DebugLogHttpResponse(resp *HttpResponse) {
 			for _, line := range strings.Split(string(resp.Body), "\n") {
 				msg += "\t" + strings.TrimRightFunc(line, unicode.IsSpace) + "\n"
 			}
-			log.Print(msg)
 		} else {
-			msg += fmt.Sprintf("\t<not showing possibel binary data for Content-Type %s", resp.ContentType)
-			log.Print(msg)
+			msg += fmt.Sprintf("\t<not showing possibly binary data for Content-Type %s", contentType)
 		}
+		log.Print(msg)
 	}
 }
