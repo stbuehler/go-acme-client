@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
+var register_flags = flag.NewFlagSet("certificate-get", flag.ExitOnError)
 
 var rsabits int = 2048
 var curve utils.Curve = utils.CurveP521

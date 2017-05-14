@@ -7,7 +7,7 @@ import (
 	"github.com/stbuehler/go-acme-client/utils"
 )
 
-var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
+var register_flags = flag.NewFlagSet("authorize-import", flag.ExitOnError)
 
 var storagePath string
 

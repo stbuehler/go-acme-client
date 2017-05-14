@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
+var register_flags = flag.NewFlagSet("certificate", flag.ExitOnError)
 var arg_set_name string
 var arg_check_ocsp bool
 var arg_revoke bool

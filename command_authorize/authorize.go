@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
+var register_flags = flag.NewFlagSet("authorize", flag.ExitOnError)
 
 func init() {
 	command_base.AddStorageFlags(register_flags)

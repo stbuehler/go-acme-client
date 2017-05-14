@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var register_flags = flag.NewFlagSet("register", flag.ExitOnError)
+var register_flags = flag.NewFlagSet("authorize-batch", flag.ExitOnError)
 var arg_refresh bool
 
 func init() {
