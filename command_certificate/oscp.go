@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"github.com/stbuehler/go-acme-client/requests"
-	"github.com/stbuehler/go-acme-client/types"
 	"github.com/stbuehler/go-acme-client/utils"
 	"golang.org/x/crypto/ocsp"
 )
@@ -112,16 +111,16 @@ func SignatureAlgorithmString(sigAlg x509.SignatureAlgorithm) string {
 	}
 }
 
-func CheckOCSP(cert types.Certificate) (OCSPStatus, error) {
-	if 0 == len(cert.LinkIssuer) {
+func CheckOCSP(link_issuer string, cert *x509.Certificate) (OCSPStatus, error) {
+	if 0 == len(link_issuer) {
 		return Unknown, fmt.Errorf("Unknown issuer certificate")
 	}
 
-	if 0 == len(cert.Certificate.OCSPServer) || 0 == len(cert.Certificate.OCSPServer[0]) {
+	if 0 == len(cert.OCSPServer) || 0 == len(cert.OCSPServer[0]) {
 		return Unknown, fmt.Errorf("No OCSP server defined")
 	}
 
-	issuerCert, err := requests.FetchCertificate(cert.LinkIssuer)
+	issuerCert, err := requests.FetchCertificate(link_issuer)
 	if nil != err {
 		return Unknown, fmt.Errorf("Failed to fetch issuer certificate: %v", err)
 	}
@@ -130,7 +129,7 @@ func CheckOCSP(cert types.Certificate) (OCSPStatus, error) {
 		It seems the letsencrypt CA doesn't respond well to anything apart from SHA1
 
 		var ocspReqOptions ocsp.RequestOptions
-		switch cert.Certificate.SignatureAlgorithm {
+		switch cert.SignatureAlgorithm {
 		case x509.SHA1WithRSA, x509.DSAWithSHA1, x509.ECDSAWithSHA1:
 			ocspReqOptions.Hash = crypto.SHA1
 		case x509.SHA256WithRSA, x509.DSAWithSHA256, x509.ECDSAWithSHA256:
@@ -144,14 +143,14 @@ func CheckOCSP(cert types.Certificate) (OCSPStatus, error) {
 		}
 	*/
 
-	ocspReq, err := ocsp.CreateRequest(cert.Certificate, issuerCert.Certificate, nil)
+	ocspReq, err := ocsp.CreateRequest(cert, issuerCert.Certificate, nil)
 	if nil != err {
 		return Unknown, fmt.Errorf("Failed to create OCSP request: %v", err)
 	}
 
 	httpReq := utils.HttpRequest{
 		Method: "POST",
-		URL:    cert.Certificate.OCSPServer[0],
+		URL:    cert.OCSPServer[0],
 		Body:   ocspReq,
 		Headers: utils.HttpRequestHeader{
 			ContentType: "application/ocsp-request",
