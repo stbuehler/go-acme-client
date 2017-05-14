@@ -7,8 +7,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	jose "github.com/letsencrypt/go-jose"
 	"github.com/stbuehler/go-acme-client/utils"
+	jose "gopkg.in/square/go-jose.v1"
 )
 
 // wrapper to marshal/unmarshal json
